@@ -10,7 +10,7 @@ HTTP POST /auth
 
 {
     "email_address" : "bob@cedar.com",
-    "type" : "WAZZZZZAP"
+    "password" : "WAZZZZZAP"
 }
 ```
 
