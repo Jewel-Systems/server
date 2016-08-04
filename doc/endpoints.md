@@ -2,8 +2,6 @@
 
 Any endpoints that require auth expect HTTP Basic auth headers.
 
-# Authentication
-
 ## Signing in
 
 HTTP POST /auth
