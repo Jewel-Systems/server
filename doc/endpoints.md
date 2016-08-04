@@ -4,7 +4,7 @@ Any endpoints that require auth expect HTTP Basic auth headers.
 
 ## Signing in
 
-HTTP POST /auth
+HTTP POST `/auth`
 
 ```JSON
 
@@ -22,11 +22,11 @@ Correct                         | HTTP 200 OK
 Incorrect                       | HTTP 401 Unauthorised
 Correct but wrong user type     | HTTP 403 Forbidden
 
-Link-server will store credentials when response is `HTTP 200 OK` and place them in HTTP Basic Auth headers for every request after.
+Link-server will store credentials when response is HTTP 200 OK and place them in HTTP Basic Auth headers for every request after.
 
 ## Signing out
 
-HTTP GET /clearauth
+HTTP GET `/clearauth`
 
 This will clear credentials from link-server.
 
@@ -36,7 +36,7 @@ We are making attribute "id" "internal_id" as we do not know how client handles 
 
 ## Add User
 
-HTTP POST /user
+HTTP POST `/user`
 
 ```JSON
 
@@ -60,7 +60,7 @@ HTTP 400 OK
 
 ## Get Users
 
-HTTP GET /user
+HTTP GET `/user`
 
 ### Response:
 
@@ -75,14 +75,14 @@ HTTP 400 OK
         "type" : "teacher"
     },
     { 
-        ...
+        "..."
     }
 ]
 ```
 
 ## Get User
 
-HTTP GET /user/<internal_id>
+HTTP GET `/user/<internal_id>`
 
 ### Response:
 
@@ -101,9 +101,9 @@ HTTP 400 OK
 
 ## Get User Cards
 
-HTTP GET /user/card/<range_internal_id>
+HTTP GET `/user/card/<range_internal_id>`
 
-Example: /user/card/1-5,23
+Example: `/user/card/1-5,23`
 
 ### Response:
 
