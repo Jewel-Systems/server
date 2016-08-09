@@ -26,15 +26,17 @@ def get_database():
     return cnx, cursor
 
 
-def make_success_response(data, code=200):
+def make_success_response(data, code=200, mimetype='application/json'):
     payload = encode_json({'success':  True, 'data': data})
     resp = make_response(payload, code)
+    resp.mimetype = mimetype
     return resp
 
 
-def make_failed_response(error_message, code=400):
+def make_failed_response(error_message, code=400, mimetype='application/json'):
     payload = encode_json({'success': False, 'error': error_message})
     resp = make_response(payload, code)
+    resp.mimetype = mimetype
     return resp
 
 
