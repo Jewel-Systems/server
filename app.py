@@ -14,6 +14,18 @@ DEBUG = True
 app = Flask(__name__)
 
 
+def get_database():
+    """ returns a connection and cursor
+
+    e.g. cnx, cursor = get_database()
+    """
+
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(named_tuple=True)
+
+    return cnx, cursor
+
+
 def make_success_response(data, code=200):
     payload = encode_json({'success':  True, 'data': data})
     resp = make_response(payload, code)
@@ -30,10 +42,9 @@ def make_failed_response(error_message, code=400):
 def user():
     
     # add a new user
-    if request.method == "POST": 
-    
-        cnx = mysql.connector.connect(**config.db)        
-        cursor = cnx.cursor(named_tuple=True)
+    if request.method == "POST":
+
+        cnx, cursor = get_database()
         
         new_user = request.get_json()
         
