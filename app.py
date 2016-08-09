@@ -38,7 +38,7 @@ def make_failed_response(error_message, code=400):
     return resp
 
 
-@app.route("/user", methods=['POST'])
+@app.route("/user", methods=['POST', 'GET'])
 def user():
     
     # add a new user
@@ -75,6 +75,14 @@ def user():
             cursor.close()
             cnx.close()
 
+    # get all users
+    if request.method == "GET":
+        cnx = mysql.connector.connect(**config.db)
+        cursor = cnx.cursor(dictionary=True)
+
+        cursor.execute(""" SELECT id, email, fname, lname, type, created_at FROM user """)
+
+        return make_success_response(cursor.fetchall())
 
 if __name__ == "__main__":
     app.run(debug=DEBUG)
