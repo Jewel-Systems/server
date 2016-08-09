@@ -19,6 +19,13 @@ def encode_json(obj):
     return json.dumps(obj, cls=DateTimeEncoder)
 
 
+def parse_range(a_str):
+    result=set()
+    for part in a_str.split(','):
+        x=part.split('-')
+        result.update(range(int(x[0]),int(x[-1])+1))
+    return sorted(result)
+
 if __name__ == "__main__":
 
     print('Testing JSON')
@@ -30,3 +37,11 @@ if __name__ == "__main__":
     text = encode_json(data)
 
     print('JSON: ', text)
+
+    print('Testing page range parser')
+
+    ranges = '1-5, 34', '45, 1', '20-5', '5-20'
+
+    for i in ranges:
+        print(i, '->', parse_range(i))
+
