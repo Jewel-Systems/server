@@ -1,6 +1,7 @@
 from flask import request
 from flask import make_response
 from flask import Flask
+from flask import render_template
 
 import mysql.connector
 
@@ -8,6 +9,7 @@ import bcrypt
 
 import config
 from util import encode_json
+from util import parse_range
 
 DEBUG = True
 
@@ -48,7 +50,7 @@ def user():
 
         cnx, cursor = get_database()
         
-        new_user = request.get_json()
+        new_user = request.get_json(force=True)
         
         hashed_password = bcrypt.hashpw(new_user['password'].encode(), bcrypt.gensalt())
         
@@ -86,5 +88,25 @@ def user():
 
         return make_success_response(cursor.fetchall())
 
+
+@app.route('/user/card/<user_selection>')
+def user_card(user_selection):
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+
+    ids = parse_range(user_selection)
+
+    sql_where = ', '.join(str(i) for i in ids)
+
+    cursor.execute(""" SELECT id, email, fname, lname, type, created_at FROM user
+                       WHERE id IN ({});""".format(sql_where))  # yes, this is safe
+
+    data = cursor.fetchall()
+
+    cursor.close()
+    cnx.close()
+
+    return render_template('cards.html', users=data)
+
 if __name__ == "__main__":
-    app.run(debug=DEBUG)
+    app.run(debug=False, host='0.0.0.0', port=53455)
