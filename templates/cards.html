@@ -1,0 +1,31 @@
+<!DOCTYPE>
+<html lang="en">
+    <head>
+        <title>
+            User Cards
+        </title>
+
+        <link href="{{ url_for('static', filename='css/cards.css') }}" rel="stylesheet">
+    </head>
+
+    <body>
+
+        {% for user in users %}
+        
+            <table class = "card">
+            <tr>
+                <td><img class = "qr-code" src = "{{ url_for('static', filename='img/sampleqr.png') }}"></td>
+            
+                <td class = "user-details">
+                    <p class = "user-name">{{ user.fname }} {{ user.lname }}</p>
+                    <p class = "user-type">{{ user.type }}</p>
+                    <p class = "user-email">{{ user.email }}</p>
+                </td>
+            </tr>
+            </table>
+
+        {% endfor %}
+
+
+    </body>
+</html>
