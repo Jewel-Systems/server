@@ -1,31 +1,60 @@
 <!DOCTYPE>
-<html lang="en">
-    <head>
-        <title>
-            User Cards
-        </title>
+<html>
+  <head>
+    <title>Cards</title>
+    <style>
+      @import 'https://fonts.googleapis.com/css?family=Source+Sans+Pro';
+      body {
+        width: 100%;
+        overflow: hidden;
+      }
+      .card {
+        width: 85.6mm;
+        height: 53.98mm;
+        border-radius: 2.88mm;
+        margin-right: 1cm;
+        margin-bottom: 1cm;
+        border: solid #000 1px;
+        position: relative;
+        display: inline-block;
+        font-family: 'Source Sans Pro', helvetica, sans-serif;
+        vertical-align: top;
+      }
 
-        <link href="{{ url_for('static', filename='css/cards.css') }}" rel="stylesheet">
-    </head>
+      .card .qr {
+        float: left;
+      }
 
-    <body>
+      .card h1 {
+        font-size: 19pt;
+        color: #009390;
+        margin-bottom: 7px;
+      }
+      .card .title {
+        display: block;
+      }
+      .card .email {
+        display: block;
+        text-align: center;
+        font-size: 12pt;
+        word-wrap: break-word;
+        padding-left: 2mm;
+        padding-right: 2mm;
+      }
+      .card .name {
 
-        {% for user in users %}
-        
-            <table class = "card">
-            <tr>
-                <td><img class = "qr-code" src = "{{ url_for('static', filename='img/sampleqr.png') }}"></td>
-            
-                <td class = "user-details">
-                    <p class = "user-name">{{ user.fname }} {{ user.lname }}</p>
-                    <p class = "user-type">{{ user.type }}</p>
-                    <p class = "user-email">{{ user.email }}</p>
-                </td>
-            </tr>
-            </table>
-
-        {% endfor %}
-
-
-    </body>
+      }
+    </style>
+  </head>
+  <body>
+    {% for user in users %}
+    <div class="card">
+      <img class="qr" width="160" height="160" src="{{ url_for('static', filename='img/sampleqr.png') }}"></img>
+      <h1>Cedar House</h1>
+      <span class="title">{{ user.type }}</span>
+      <span class="name"><i>{{ user.fname }} {{ user.lname }}</i></span>
+      <span class="email">{{ user.email }}</span>
+    </div>
+    {% endfor %}
+  </body>
 </html>
