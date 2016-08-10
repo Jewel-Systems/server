@@ -23,6 +23,9 @@
 
       .card .qr {
         float: left;
+        padding: 5mm;
+        width: 35mm;
+        height: 35mm;
       }
 
       .card h1 {
@@ -49,7 +52,7 @@
   <body>
     {% for user in users %}
     <div class="card">
-      <img class="qr" width="160" height="160" src="{{ url_for('static', filename='img/sampleqr.png') }}"></img>
+      <img class="qr" src="{{ url_for('static', filename='img/sampleqr.png') }}"></img>
       <h1>Cedar House</h1>
       <span class="title">{{ user.type }}</span>
       <span class="name"><i>{{ user.fname }} {{ user.lname }}</i></span>
