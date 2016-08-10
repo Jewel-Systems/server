@@ -48,6 +48,28 @@ def make_failed_response(error_message, code=400, mimetype='application/json'):
     return resp
 
 
+@app.route('/user/<int:id>', methods=['GET'])
+def one_user(id):
+    # get a user
+    if request.method == "GET":
+        cnx = mysql.connector.connect(**config.db)
+        cursor = cnx.cursor(dictionary=True)
+        try:
+            cursor.execute(""" SELECT id, email, fname, lname, type, created_at FROM user
+                               WHERE id = %s """, (id,))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            rows = cursor.fetchall()
+            if not len(rows):
+                return make_failed_response("id not found")
+            else:
+                return make_success_response(rows[0])
+        finally:
+            cursor.close()
+            cnx.close()
+
+
 @app.route("/user", methods=['POST', 'GET'])
 def user():
     
@@ -92,9 +114,15 @@ def user():
         cnx = mysql.connector.connect(**config.db)
         cursor = cnx.cursor(dictionary=True)
 
-        cursor.execute(""" SELECT id, email, fname, lname, type, created_at FROM user """)
-
-        return make_success_response(cursor.fetchall())
+        try:
+            cursor.execute(""" SELECT id, email, fname, lname, type, created_at FROM user """)
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            return make_success_response(cursor.fetchall())
+        finally:
+            cursor.close()
+            cnx.close()
 
 
 @app.route('/user/card/<user_selection>')
