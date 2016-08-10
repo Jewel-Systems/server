@@ -1,6 +1,23 @@
 from datetime import datetime
 import json
 from json import JSONEncoder
+import qrcode
+import os
+
+
+def make_qr(user_id: int, path) -> None:
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=10,
+        border=0,
+    )
+    qr.add_data(str(user_id))
+    qr.make(fit=True)
+
+    name = '{}.png'.format(user_id)
+
+    qr.make_image().get_image().save(os.path.join(path, name))
 
 
 class DateTimeEncoder(JSONEncoder):

@@ -53,7 +53,7 @@
   <body>
     {% for user in users %}
     <div class="card">
-      <img class="qr" src="{{ url_for('static', filename='img/sampleqr.png') }}"></img>
+      <img class="qr" src="{{ url_for('static', filename='img/qr/' + user.id | string +'.png') }}"></img>
       <h1>Cedar House</h1>
       <span class="title">{{ user.type }}</span>
       <span class="name"><i>{{ user.fname }} {{ user.lname }}</i></span>

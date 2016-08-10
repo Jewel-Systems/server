@@ -1,17 +1,23 @@
+import os
+
 from flask import request
 from flask import make_response
 from flask import Flask
 from flask import render_template
 
 import mysql.connector
-
 import bcrypt
 
 import config
 from util import encode_json
 from util import parse_range
+from util import make_qr
 
 DEBUG = True
+
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+QR_CODE_PATH = os.path.join(APP_ROOT, 'static', 'img', 'qr')
 
 app = Flask(__name__)
 
@@ -73,7 +79,9 @@ def user():
             return make_failed_response(str(e))
         else:
             cnx.commit()
-            data = dict(id=cursor.lastrowid)
+            new_id = cursor.lastrowid
+            data = dict(id=new_id)
+            make_qr(new_id, QR_CODE_PATH)
             return make_success_response(data)
         finally:
             cursor.close()
@@ -108,5 +116,20 @@ def user_card(user_selection):
 
     return render_template('cards.html', users=data)
 
+
+@app.route('/user/generate_qr/<user_selection>')
+def generate_qr(user_selection):
+
+    ids = parse_range(user_selection)
+
+    try:
+        for i in ids:
+            make_qr(i, QR_CODE_PATH)
+    except Exception as e:
+        return make_failed_response(str(e))
+    else:
+        return make_success_response(ids)
+
+
 if __name__ == "__main__":
-    app.run(debug=False, host='0.0.0.0', port=53455)
+    app.run(debug=DEBUG, host='0.0.0.0', port=53455)
