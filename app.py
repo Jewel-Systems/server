@@ -5,6 +5,8 @@ from flask import make_response
 from flask import Flask
 from flask import render_template
 
+from flask_cors import CORS, cross_origin
+
 import mysql.connector
 import bcrypt
 
@@ -20,6 +22,8 @@ APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 QR_CODE_PATH = os.path.join(APP_ROOT, 'static', 'img', 'qr')
 
 app = Flask(__name__)
+
+CORS(app)
 
 
 def get_database():
