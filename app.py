@@ -48,7 +48,7 @@ def make_failed_response(error_message, code=400, mimetype='application/json'):
     return resp
 
 
-@app.route('/user/<int:id>', methods=['GET'])
+@app.route('/user/<int:id>', methods=['GET', 'DELETE'])
 def one_user(id):
     # get a user
     if request.method == "GET":
@@ -65,6 +65,25 @@ def one_user(id):
                 return make_failed_response("id not found")
             else:
                 return make_success_response(rows[0])
+        finally:
+            cursor.close()
+            cnx.close()
+
+    # delete a user
+    if request.method == "DELETE":
+        cnx = mysql.connector.connect(**config.db)
+        cursor = cnx.cursor()
+        try:
+            cursor.execute(""" DELETE FROM user
+                               WHERE id = %s """, (id,))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            if not cursor.rowcount:
+                return make_failed_response("id not found")
+            else:
+                return make_success_response(dict(id=id))
         finally:
             cursor.close()
             cnx.close()
