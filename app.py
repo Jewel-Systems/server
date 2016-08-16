@@ -52,7 +52,7 @@ def make_failed_response(error_message, code=400, mimetype='application/json'):
     return resp
 
 
-@app.route('/user/<int:id>', methods=['GET', 'DELETE'])
+@app.route('/api/v1/user/<int:id>', methods=['GET', 'DELETE'])
 def one_user(id):
     # get a user
     if request.method == "GET":
@@ -93,7 +93,7 @@ def one_user(id):
             cnx.close()
 
 
-@app.route("/user", methods=['POST', 'GET'])
+@app.route("/api/v1/user", methods=['POST', 'GET'])
 def user():
     
     # add a new user
@@ -148,7 +148,7 @@ def user():
             cnx.close()
 
 
-@app.route('/user/card/<user_selection>')
+@app.route('/api/v1/user/card/<user_selection>')
 def user_card(user_selection):
     cnx = mysql.connector.connect(**config.db)
     cursor = cnx.cursor(dictionary=True)
@@ -168,7 +168,7 @@ def user_card(user_selection):
     return render_template('cards.html', users=data)
 
 
-@app.route('/user/generate_qr/<user_selection>')
+@app.route('/api/v1/user/generate_qr/<user_selection>')
 def generate_qr(user_selection):
 
     ids = parse_range(user_selection)
