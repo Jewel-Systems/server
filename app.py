@@ -51,7 +51,52 @@ def make_failed_response(error_message, code=400, mimetype='application/json'):
     resp.mimetype = mimetype
     return resp
 
+    
+@app.route('/api/v1/testauth', methods=['POST'])
+def testauth():
 
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+        
+    test_user = request.get_json(force=True)
+            
+        
+    try:
+        # user name may be the user's id or their email
+        if test_user['username'].isdigit():
+            cursor.execute(""" SELECT * FROM user
+                                WHERE id = %s """, (test_user['username'],))
+            
+
+        else:
+            cursor.execute(""" SELECT * FROM user
+                                WHERE email = %s """, (test_user['username'],))
+            
+
+              
+    except Exception as e:
+        return make_failed_response(str(e))
+        
+    else:
+        rows = cursor.fetchall()
+        
+        # user does not exist
+        if not len(rows):
+            return make_failed_response("id / email not found")
+
+        else:
+            # test password
+            if bcrypt.checkpw(test_user['password'].encode('ascii'), rows[0]['password'].encode('ascii')):
+                rows[0].pop('password')
+                return make_success_response(rows[0])
+            else:
+                return make_failed_response('incorrect password')
+            
+    finally: 
+        cursor.close()
+        cnx.close()
+
+    
 @app.route('/api/v1/user/<int:id>', methods=['GET', 'DELETE'])
 def one_user(id):
     # get a user
@@ -148,6 +193,47 @@ def user():
             cnx.close()
 
 
+@app.route('/api/v1/device/<int:id>', methods=['GET', 'DELETE'])
+def one_device(id):
+    # get a device
+    if request.method == "GET":
+        cnx = mysql.connector.connect(**config.db)
+        cursor = cnx.cursor(dictionary=True)
+        try:
+            cursor.execute(""" SELECT * FROM device
+                               WHERE id = %s """, (id,))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            rows = cursor.fetchall()
+            if not len(rows):
+                return make_failed_response("id not found")
+            else:
+                return make_success_response(rows[0])
+        finally:
+            cursor.close()
+            cnx.close()
+
+    # delete a device
+    if request.method == "DELETE":
+        cnx = mysql.connector.connect(**config.db)
+        cursor = cnx.cursor()
+        try:
+            cursor.execute(""" DELETE FROM device
+                               WHERE id = %s """, (id,))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            if not cursor.rowcount:
+                return make_failed_response("id not found")
+            else:
+                return make_success_response(dict(id=id))
+        finally:
+            cursor.close()
+            cnx.close()
+            
+            
 @app.route('/api/v1/user/card/<user_selection>')
 def user_card(user_selection):
     cnx = mysql.connector.connect(**config.db)
@@ -168,6 +254,58 @@ def user_card(user_selection):
     return render_template('cards.html', users=data)
 
 
+@app.route('/api/v1/device', methods=['POST', 'GET'])
+def device ():
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+    
+    if request.method == 'GET':
+        try:
+            cursor.execute(""" SELECT * FROM device; """)
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:        
+            data = cursor.fetchall()
+            for row in data:
+                row['is_active'] = True if row['is_active'] else False            
+            return make_success_response(data)
+        finally:
+            cursor.close()
+            cnx.close()
+    
+    # add a new device
+    if request.method == "POST":
+
+        cnx, cursor = get_database()
+        
+        new_device = request.get_json(force=True)
+        
+        try:
+            cursor.execute(
+                """ INSERT INTO device (serial_no, type, is_active)
+                               VALUES (%s, %s, %s); """,
+                (
+                    new_device["serial_no"],
+                    new_device["type"],
+                    new_device.get("is_active", False),
+                )
+            )
+                            
+        except Exception as e:
+            cnx.rollback()
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            new_id = cursor.lastrowid
+            data = dict(id=new_id)
+            return make_success_response(data)
+        finally:
+            cursor.close()
+            cnx.close()
+
+            
+  
+          
 @app.route('/api/v1/user/generate_qr/<user_selection>')
 def generate_qr(user_selection):
 
