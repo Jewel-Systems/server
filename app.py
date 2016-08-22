@@ -320,5 +320,27 @@ def generate_qr(user_selection):
         return make_success_response(ids)
 
 
+@app.route('/api/v1/device/<int:id>/active', methods=['PUT', 'DELETE'])
+def device_active (id):
+
+    cnx, cursor = get_database()
+
+    is_active = True 
+    
+    if request.method == 'DELETE':
+        is_active = False 
+    
+    cursor.execute(""" UPDATE device SET is_active=%s WHERE id = %s; """,
+                    (is_active, id))
+            
+        
+    cnx.commit()
+    cursor.close()
+    cnx.close()    
+    
+        
+    return ('', 200)
+    
+
 if __name__ == "__main__":
     app.run(debug=DEBUG, host='0.0.0.0', port=53455)
