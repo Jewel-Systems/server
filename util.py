@@ -4,7 +4,6 @@ from json import JSONEncoder
 import qrcode
 import os
 
-
 def make_qr(user_id: int, path) -> None:
     qr = qrcode.QRCode(
         version=None,

@@ -15,7 +15,7 @@ from util import encode_json
 from util import parse_range
 from util import make_qr
 
-DEBUG = True
+DEBUG = False
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -25,6 +25,10 @@ app = Flask(__name__)
 
 CORS(app)
 
+
+def log(message):
+    if DEBUG:
+        print (message)
 
 def get_database():
     """ returns a connection and cursor
@@ -96,6 +100,11 @@ def testauth():
         cursor.close()
         cnx.close()
 
+    
+# -----------------------------------------------------------------------------
+# Users
+# -----------------------------------------------------------------------------
+    
     
 @app.route('/api/v1/user/<int:id>', methods=['GET', 'DELETE'])
 def one_user(id):
@@ -192,48 +201,12 @@ def user():
             cursor.close()
             cnx.close()
 
-
-@app.route('/api/v1/device/<int:id>', methods=['GET', 'DELETE'])
-def one_device(id):
-    # get a device
-    if request.method == "GET":
-        cnx = mysql.connector.connect(**config.db)
-        cursor = cnx.cursor(dictionary=True)
-        try:
-            cursor.execute(""" SELECT * FROM device
-                               WHERE id = %s """, (id,))
-        except Exception as e:
-            return make_failed_response(str(e))
-        else:
-            rows = cursor.fetchall()
-            if not len(rows):
-                return make_failed_response("id not found")
-            else:
-                return make_success_response(rows[0])
-        finally:
-            cursor.close()
-            cnx.close()
-
-    # delete a device
-    if request.method == "DELETE":
-        cnx = mysql.connector.connect(**config.db)
-        cursor = cnx.cursor()
-        try:
-            cursor.execute(""" DELETE FROM device
-                               WHERE id = %s """, (id,))
-        except Exception as e:
-            return make_failed_response(str(e))
-        else:
-            cnx.commit()
-            if not cursor.rowcount:
-                return make_failed_response("id not found")
-            else:
-                return make_success_response(dict(id=id))
-        finally:
-            cursor.close()
-            cnx.close()
             
-            
+# -----------------------------------------------------------------------------
+# Cards
+# -----------------------------------------------------------------------------
+
+  
 @app.route('/api/v1/user/card/<user_selection>')
 def user_card(user_selection):
     cnx = mysql.connector.connect(**config.db)
@@ -252,7 +225,24 @@ def user_card(user_selection):
     cnx.close()
 
     return render_template('cards.html', users=data)
+    
+          
+@app.route('/api/v1/user/generate_qr/<user_selection>')
+def generate_qr(user_selection):
 
+    ids = parse_range(user_selection)
+
+    try:
+        for i in ids:
+            make_qr(i, QR_CODE_PATH)
+    except Exception as e:
+        return make_failed_response(str(e))
+    else:
+        return make_success_response(ids)
+
+# -----------------------------------------------------------------------------
+# Devices
+# -----------------------------------------------------------------------------  
 
 @app.route('/api/v1/device', methods=['POST', 'GET'])
 def device ():
@@ -303,21 +293,46 @@ def device ():
             cursor.close()
             cnx.close()
 
-            
-  
-          
-@app.route('/api/v1/user/generate_qr/<user_selection>')
-def generate_qr(user_selection):
 
-    ids = parse_range(user_selection)
+@app.route('/api/v1/device/<int:id>', methods=['GET', 'DELETE'])
+def one_device(id):
+    # get a device
+    if request.method == "GET":
+        cnx = mysql.connector.connect(**config.db)
+        cursor = cnx.cursor(dictionary=True)
+        try:
+            cursor.execute(""" SELECT * FROM device
+                               WHERE id = %s """, (id,))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            rows = cursor.fetchall()
+            if not len(rows):
+                return make_failed_response("id not found")
+            else:
+                return make_success_response(rows[0])
+        finally:
+            cursor.close()
+            cnx.close()
 
-    try:
-        for i in ids:
-            make_qr(i, QR_CODE_PATH)
-    except Exception as e:
-        return make_failed_response(str(e))
-    else:
-        return make_success_response(ids)
+    # delete a device
+    if request.method == "DELETE":
+        cnx = mysql.connector.connect(**config.db)
+        cursor = cnx.cursor()
+        try:
+            cursor.execute(""" DELETE FROM device
+                               WHERE id = %s """, (id,))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            if not cursor.rowcount:
+                return make_failed_response("id not found")
+            else:
+                return make_success_response(dict(id=id))
+        finally:
+            cursor.close()
+            cnx.close()
 
 
 @app.route('/api/v1/device/<int:id>/active', methods=['PUT', 'DELETE'])
@@ -340,7 +355,159 @@ def device_active (id):
     
         
     return ('', 200)
+
+
+# -----------------------------------------------------------------------------
+# Classes (Academic)
+# -----------------------------------------------------------------------------  
+    
+@app.route('/api/v1/class', methods=['GET', 'POST'])
+def all_class ():
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+    
+    # get all classes
+    if request.method == 'GET':
+        try:
+            cursor.execute(""" SELECT * FROM class; """)
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:        
+            data = cursor.fetchall()           
+            return make_success_response(data)
+        finally:
+            cursor.close()
+            cnx.close()
+    
+    # add a new class
+    if request.method == "POST":
+
+        cnx, cursor = get_database()
+        
+        new_class = request.get_json(force=True)
+        
+        try:
+            cursor.execute(
+                """ INSERT INTO class (name)
+                               VALUES (%s); """,
+                (
+                    new_class["name"],
+                )
+            )
+                            
+        except Exception as e:
+            print ('all_class(): attempted SQL', cursor.statement)
+            cnx.rollback()
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            new_id = cursor.lastrowid
+            data = dict(id=new_id)
+            return make_success_response(data)
+        finally:
+            cursor.close()
+            cnx.close()
+            
+            
+@app.route('/api/v1/class/<int:id>', methods=['GET', 'DELETE'])
+def one_class (id):
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+    
+    # get a class
+    if request.method == "GET":
+        try:
+            cursor.execute(""" SELECT * FROM class
+                               WHERE `class`.`id` = %s """, (id,))
+                               
+            classes = cursor.fetchall()
+                               
+            
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            if not len(classes):
+                return make_failed_response("id not found")
+            else:
+                # now we get who is registered for this class                
+                cursor.execute(""" SELECT user.id, user.email, user.fname, 
+                                   user.lname, user.type, user.created_at
+                                   FROM class_registration, user
+                                   WHERE class_registration.class_id = %s 
+                                   AND class_registration.user_id = user.id;""", (id,))
+                
+                users = cursor.fetchall()
+                
+                
+                classes[0]['users'] = users
+                
+                print (classes)
+            
+                return make_success_response(classes[0])
+        finally:
+            cursor.close()
+            cnx.close()
+    
+    # remove a class
+    if request.method == "DELETE":
+
+        cnx, cursor = get_database()
+        
+        new_class = request.get_json(force=True)
+        
+        try:
+            cursor.execute(""" DELETE FROM class
+                               WHERE id = %s """, (id,))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            if not cursor.rowcount:
+                return make_failed_response("id not found")
+            else:
+                return make_success_response(dict(id=id))
+        finally:
+            cursor.close()
+            cnx.close()
+
+
+@app.route('/api/v1/class/<int:class_id>/user/<int:user_id>', methods=['PUT', 'DELETE'])
+def class_register (class_id, user_id):
+    cnx, cursor = get_database()
+
+    if request.method == 'PUT':
+        try:
+            cursor.execute(""" INSERT INTO class_registration (class_id, user_id)
+                               VALUES (%s, %s); """, (class_id,user_id))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            return make_success_response(dict(id=cursor.lastrowid))
+        finally:
+            cursor.close()
+            cnx.close()
+
+    if request.method == 'DELETE':
+        try:
+            cursor.execute(""" DELETE FROM class_registration
+                               WHERE class_id = %s
+                               AND user_id = %s; """, (class_id,user_id))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            if not cursor.rowcount:
+                return make_failed_response("ids not found")
+            else:
+                return make_success_response(dict(class_id=class_id, user_id=user_id))
+        finally:
+            cursor.close()
+            cnx.close()
+            
     
 
 if __name__ == "__main__":
+    print ('app.py __main__ !')
+    DEBUG = True
     app.run(debug=DEBUG, host='0.0.0.0', port=53455)
