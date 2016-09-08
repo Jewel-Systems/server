@@ -1,5 +1,9 @@
 import os
 
+from dateutil.parser import parse as date_parse
+
+from datetime import timezone
+
 from flask import request
 from flask import make_response
 from flask import Flask
@@ -14,6 +18,7 @@ import config
 from util import encode_json
 from util import parse_range
 from util import make_qr
+from util import dict_dates_to_utc
 
 DEBUG = False
 
@@ -29,6 +34,7 @@ CORS(app)
 def log(message):
     if DEBUG:
         print (message)
+
 
 def get_database():
     """ returns a connection and cursor
@@ -49,8 +55,8 @@ def make_success_response(data, code=200, mimetype='application/json'):
     return resp
 
 
-def make_failed_response(error_message, code=400, mimetype='application/json'):
-    payload = encode_json({'success': False, 'error': error_message})
+def make_failed_response(error_message, code=400, mimetype='application/json', data=None):
+    payload = encode_json({'success': False, 'error': error_message, 'data':data})
     resp = make_response(payload, code)
     resp.mimetype = mimetype
     return resp
@@ -63,7 +69,6 @@ def testauth():
     cursor = cnx.cursor(dictionary=True)
         
     test_user = request.get_json(force=True)
-            
         
     try:
         # user name may be the user's id or their email
@@ -71,12 +76,9 @@ def testauth():
             cursor.execute(""" SELECT * FROM user
                                 WHERE id = %s """, (test_user['username'],))
             
-
         else:
             cursor.execute(""" SELECT * FROM user
                                 WHERE email = %s """, (test_user['username'],))
-            
-
               
     except Exception as e:
         return make_failed_response(str(e))
@@ -95,16 +97,14 @@ def testauth():
                 return make_success_response(rows[0])
             else:
                 return make_failed_response('incorrect password')
-            
+                
     finally: 
         cursor.close()
         cnx.close()
 
-    
 # -----------------------------------------------------------------------------
 # Users
 # -----------------------------------------------------------------------------
-    
     
 @app.route('/api/v1/user/<int:id>', methods=['GET', 'DELETE'])
 def one_user(id):
@@ -112,17 +112,41 @@ def one_user(id):
     if request.method == "GET":
         cnx = mysql.connector.connect(**config.db)
         cursor = cnx.cursor(dictionary=True)
+        
         try:
-            cursor.execute(""" SELECT id, email, fname, lname, type, created_at FROM user
+            cursor.execute(""" SELECT id, email, fname, lname, type, created_at
+                               FROM user
                                WHERE id = %s """, (id,))
+                               
         except Exception as e:
             return make_failed_response(str(e))
+            
         else:
             rows = cursor.fetchall()
+            
             if not len(rows):
                 return make_failed_response("id not found")
-            else:
+                
+            else:            
+                # get their loaned devices                
+                cursor.execute(""" SELECT * FROM device
+                                   WHERE loaned_by = %s; """,
+                               (id,))
+                               
+                loaned = cursor.fetchall()
+                
+                # get their privilages
+                cursor.execute(""" SELECT type FROM device_type_privilage
+                                   WHERE user_id = %s; """,
+                               (id,))
+            
+                privilages = cursor.fetchall()
+            
+                rows[0]['loaned'] = loaned
+                rows[0]['privilages'] = privilages
+            
                 return make_success_response(rows[0])
+                
         finally:
             cursor.close()
             cnx.close()
@@ -152,7 +176,6 @@ def user():
     
     # add a new user
     if request.method == "POST":
-
         cnx, cursor = get_database()
         
         new_user = request.get_json(force=True)
@@ -192,7 +215,8 @@ def user():
         cursor = cnx.cursor(dictionary=True)
 
         try:
-            cursor.execute(""" SELECT id, email, fname, lname, type, created_at FROM user """)
+            cursor.execute(""" SELECT id, email, fname, lname, type, created_at 
+                               FROM user """)
         except Exception as e:
             return make_failed_response(str(e))
         else:
@@ -200,12 +224,45 @@ def user():
         finally:
             cursor.close()
             cnx.close()
+            
+            
+@app.route('/api/v1/user/<int:user_id>/privilage/<type>', methods=['PUT', 'DELETE'])
+def user_privilage (user_id, type):
+    cnx, cursor = get_database()
 
+    if request.method == 'PUT':
+        try:
+            cursor.execute(""" INSERT INTO device_type_privilage (user_id, type)
+                               VALUES (%s, %s); """, (user_id, type))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            return make_success_response(dict(id=cursor.lastrowid))
+        finally:
+            cursor.close()
+            cnx.close()
+            
+    if request.method == 'DELETE':
+        try:
+            cursor.execute(""" DELETE FROM device_type_privilage
+                               WHERE user_id = %s
+                               AND type = %s; """, (user_id, type))
+        except Exception as e:
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            if not cursor.rowcount:
+                return make_failed_response("ids not found")
+            else:
+                return make_success_response(dict(user_id=user_id, type=type))
+        finally:
+            cursor.close()
+            cnx.close()
             
 # -----------------------------------------------------------------------------
 # Cards
 # -----------------------------------------------------------------------------
-
   
 @app.route('/api/v1/user/card/<user_selection>')
 def user_card(user_selection):
@@ -356,7 +413,151 @@ def device_active (id):
         
     return ('', 200)
 
+ 
+@app.route('/api/v1/device/<int:device_id>/loan/<int:user_id>', methods=['PUT', 'DELETE'])
+def loan (device_id, user_id):
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+    
+    # attempt to loan
+    if request.method == 'PUT':
+        cursor.execute(""" SELECT COUNT(id) AS count, loaned_by, type
+                           FROM device WHERE id = %s
+                           AND loaned_by IS NOT NULL """, (device_id,))
+        
+        device = cursor.fetchone()
+        
+        log (device)
+        
+        # is user privilaged for this device?
+        
+        cursor.execute(""" SELECT COUNT(user_id) AS count, device.type AS type
+                           FROM device, device_type_privilage
+                           WHERE device.type = device_type_privilage.type
+                           AND device_type_privilage.user_id = %s """,
+                           (user_id,))
+                           
+        count = cursor.fetchone()['count']
+        
+        log ('privilage ' + str (count))
+        
+        if count == 0:
+            return make_failed_response(error_message = 1)
+        
+        # is the device loaned by a user?
+        if device['count']:
+            cursor.execute(""" SELECT user.id, user.email, user.fname, 
+                               user.lname, user.type, user.created_at
+                               FROM user
+                               WHERE user.id = %s; """, (device['loaned_by'],))
+                               
+            user = cursor.fetchone()
+            
+            return make_failed_response(error_message = 2, data = user)
+            
+        else:
+            
+            # TODO: reservation logic
+            
+            cursor.execute(""" UPDATE device SET loaned_by = %s
+                               WHERE device.id = %s """, (user_id, device_id))
+            cnx.commit()
+            cursor.close()
+            cnx.close()
+            
+            return make_success_response (data=dict(device_id=device_id, user_id=user_id))
+        
+    # attempt to return device
+    if request.method == 'DELETE':
+        
+        # check same user returning, device  exists, or is loaned
+        cursor.execute(""" SELECT COUNT(id) AS count
+                           FROM device WHERE id = %s
+                           AND loaned_by = %s """, (device_id, user_id))
+                           
+        count = cursor.fetchone()['count']
+        
+        if count == 0:
+            return make_failed_response (error_message='invalid user/device')
 
+        cursor.execute(""" UPDATE device 
+                           SET loaned_by = NULL
+                           WHERE device.id = %s; """, (device_id,))
+                           
+        cnx.commit()
+        cursor.close()
+        cnx.close()
+
+        return make_success_response (data=dict(device_id=device_id, user_id=user_id))
+
+        
+# -----------------------------------------------------------------------------
+# Reservation
+# -----------------------------------------------------------------------------  
+        
+@app.route('/api/v1/reservation', methods=['GET', 'POST'])
+def reservation ():
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+    
+    # get all reservations
+    if request.method == 'GET':
+        try:
+            cursor.execute(""" SELECT * FROM reservation; """)
+            
+        except Exception as e:
+            return make_failed_response(str(e))
+            
+        else:        
+            reservations = cursor.fetchall()
+            dict_dates_to_utc(reservations)            
+            return make_success_response(reservations)
+            
+        finally:
+            cursor.close()
+            cnx.close()
+        
+    # add reservation
+    if request.method == 'POST':
+        new_reservation = request.get_json(force=True)
+        
+        start_time = date_parse(new_reservation['start_time']).astimezone(tz=timezone.utc)
+        end_time = date_parse(new_reservation['end_time']).astimezone(tz=timezone.utc)
+        
+        try:
+            cursor.execute(
+                """ INSERT INTO reservation (start_time,
+                                             end_time,
+                                             class_id,
+                                             type,
+                                             count,
+                                             user_id,
+                                             safe_zone)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s); """,
+                (
+                    start_time,
+                    end_time,
+                    new_reservation['class_id'],
+                    new_reservation['type'],
+                    new_reservation['count'],
+                    new_reservation['user_id'],
+                    new_reservation.get('safe_zone', '01:00:00')
+                )
+            )
+                            
+        except Exception as e:
+            cnx.rollback()
+            return make_failed_response(str(e))
+        else:
+            cnx.commit()
+            new_id = cursor.lastrowid
+            data = dict(id=new_id)
+            return make_success_response(data)
+        finally:
+            cursor.close()
+            cnx.close()
+        
+        
 # -----------------------------------------------------------------------------
 # Classes (Academic)
 # -----------------------------------------------------------------------------  
@@ -370,11 +571,14 @@ def all_class ():
     if request.method == 'GET':
         try:
             cursor.execute(""" SELECT * FROM class; """)
+            
         except Exception as e:
             return make_failed_response(str(e))
+            
         else:        
             data = cursor.fetchall()           
             return make_success_response(data)
+            
         finally:
             cursor.close()
             cnx.close()
@@ -396,14 +600,16 @@ def all_class ():
             )
                             
         except Exception as e:
-            print ('all_class(): attempted SQL', cursor.statement)
+            log ('all_class(): attempted SQL', cursor.statement)
             cnx.rollback()
             return make_failed_response(str(e))
+            
         else:
             cnx.commit()
             new_id = cursor.lastrowid
             data = dict(id=new_id)
             return make_success_response(data)
+            
         finally:
             cursor.close()
             cnx.close()
@@ -436,8 +642,7 @@ def one_class (id):
                                    WHERE class_registration.class_id = %s 
                                    AND class_registration.user_id = user.id;""", (id,))
                 
-                users = cursor.fetchall()
-                
+                users = cursor.fetchall()                
                 
                 classes[0]['users'] = users
                 
@@ -475,6 +680,7 @@ def one_class (id):
 def class_register (class_id, user_id):
     cnx, cursor = get_database()
 
+    # register user
     if request.method == 'PUT':
         try:
             cursor.execute(""" INSERT INTO class_registration (class_id, user_id)
@@ -488,6 +694,7 @@ def class_register (class_id, user_id):
             cursor.close()
             cnx.close()
 
+    # deregister user
     if request.method == 'DELETE':
         try:
             cursor.execute(""" DELETE FROM class_registration
@@ -506,6 +713,57 @@ def class_register (class_id, user_id):
             cnx.close()
             
     
+@app.route('/api/v1/lateness', methods=['GET', 'POST'])
+def lateness():
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+    
+    if request.method == 'POST':
+        new_lateness = request.get_json(force=True)
+        
+        d = date_parse(new_lateness['datetime'])
+        
+        try:
+            d = d.astimezone(tz=timezone.utc)
+        except ValueError:
+            return make_failed_response(str(e))
+        
+        
+        log (d)
+        
+        try:
+            cursor.execute(""" INSERT INTO lateness (user_id, datetime) 
+                               VALUES (%s, %s) """,
+                               (new_lateness['user_id'],
+                                d))
+               
+        except Exception as e:
+            cnx.rollback()
+            return make_failed_response(str(e))
+            
+        else:
+            cnx.commit()
+            new_id = cursor.lastrowid
+            data = dict(id=new_id)
+            return make_success_response(data)
+            
+        finally:
+            cursor.close()
+            cnx.close()
+            
+            
+    if request.method == 'GET':
+        
+        cursor.execute (""" SELECT * FROM lateness; """)
+        
+        rows = cursor.fetchall()
+        
+        dict_dates_to_utc(rows)
+
+        cursor.close()
+        cnx.close()
+        
+        return make_success_response(data = rows)
 
 if __name__ == "__main__":
     print ('app.py __main__ !')

@@ -1,8 +1,22 @@
 from datetime import datetime
+from datetime import timedelta
 import json
 from json import JSONEncoder
 import qrcode
 import os
+from datetime import timezone
+
+date_keys = ['created_at', 'start_time', 'end_time', 'last_modified']
+
+def dict_dates_to_utc(list_of_dict):    
+    for d in list_of_dict:        
+        for key, value in d.items():
+            if key in date_keys:
+                print (key, d[key])
+                d[key] = d[key].replace(tzinfo=timezone.utc)
+                print (key, d[key])
+
+
 
 def make_qr(user_id: int, path) -> None:
     qr = qrcode.QRCode(
@@ -26,6 +40,8 @@ class DateTimeEncoder(JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
+        if isinstance(obj, timedelta):
+            return str(obj)
         else:
             return JSONEncoder.default(self, obj)
 
