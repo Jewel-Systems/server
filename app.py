@@ -226,7 +226,7 @@ def user():
             cnx.close()
             
             
-@app.route('/api/v1/user/<int:user_id>/privilage/<type>', methods=['PUT', 'DELETE'])
+@app.route('/api/v1/user/<int:user_id>/privilege/<type>', methods=['PUT', 'DELETE'])
 def user_privilage (user_id, type):
     cnx, cursor = get_database()
 
@@ -490,11 +490,26 @@ def loan (device_id, user_id):
 
         return make_success_response (data=dict(device_id=device_id, user_id=user_id))
 
-        
+
+@app.route('/api/v1/device/type', methods=['GET'])        
+def device_type ():
+    cnx, cursor = get_database()
+    
+    cursor.execute(""" SELECT DISTINCT type FROM device; """)
+    
+    types = [row.type for row in cursor.fetchall()]
+    
+    cursor.close()
+    cnx.close()
+    
+    log ("device_type() " + str(types))
+    
+    return make_success_response(data=types)
+
 # -----------------------------------------------------------------------------
 # Reservation
 # -----------------------------------------------------------------------------  
-        
+
 @app.route('/api/v1/reservation', methods=['GET', 'POST'])
 def reservation ():
     cnx = mysql.connector.connect(**config.db)
@@ -556,8 +571,32 @@ def reservation ():
         finally:
             cursor.close()
             cnx.close()
+
+@app.route('/api/v1/reservation/<int:id>', methods=['DELETE'])
+def one_reservation(id):
+    cnx, cursor = get_database()
+
+    # delete (revoke) a reservation
+    if request.method == 'DELETE':
+        try:
+            cursor.execute(""" DELETE FROM reservation
+                               WHERE id = %s """, (id,))
+                               
+        except Exception as e:
+            return make_failed_response(str(e))
+            
+        else:
+            cnx.commit()
+            if not cursor.rowcount:
+                return make_failed_response("id not found")
+            else:
+                return make_success_response(dict(id=id))
+                
+        finally:
+            cursor.close()
+            cnx.close()
         
-        
+
 # -----------------------------------------------------------------------------
 # Classes (Academic)
 # -----------------------------------------------------------------------------  
