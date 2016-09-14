@@ -3,6 +3,7 @@
   <head>
     <title>Cards</title>
     <style>
+    
       @import '{{ url_for('static', filename='css/font.css') }}';
       .card {
         width: 85.6mm;
@@ -16,6 +17,12 @@
         font-family: 'Source Sans Pro', helvetica, sans-serif;
         vertical-align: top;
       }
+      
+      @page {
+            size: A4;
+            margin: 2mm;
+        }
+    
 
       .card .qr {
         float: left;
@@ -26,7 +33,7 @@
       
 
       .card h1 {
-        font-size: 19pt;
+        font-size: 18pt;
         color: #009390;
         margin-bottom: 7px;
       }

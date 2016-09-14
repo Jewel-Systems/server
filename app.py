@@ -12,6 +12,8 @@ from flask import render_template
 
 from flask_cors import CORS, cross_origin
 
+from flask_weasyprint import HTML, render_pdf
+
 import mysql.connector
 import bcrypt
 
@@ -319,7 +321,29 @@ def user_card(user_selection):
 
     return render_template('cards.html', users=data)
     
-          
+
+@app.route('/api/v1/user/card/<user_selection>/pdf')
+def user_card_pdf(user_selection):
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+
+    ids = parse_range(user_selection)
+
+    sql_where = ', '.join(str(i) for i in ids)
+
+    cursor.execute(""" SELECT id, email, fname, lname, type, created_at FROM user
+                       WHERE id IN ({});""".format(sql_where))  # yes, this is safe
+
+    data = cursor.fetchall()
+
+    cursor.close()
+    cnx.close()
+
+    # Make a PDF straight from HTML in a string.
+    html = render_template('cards.html', users=data)
+    return render_pdf(HTML(string=html))
+    
+      
 @app.route('/api/v1/user/generate_qr/<user_selection>')
 def generate_qr(user_selection):
 
@@ -332,7 +356,7 @@ def generate_qr(user_selection):
         return make_failed_response(str(e))
     else:
         return make_success_response(ids)
-
+        
 # -----------------------------------------------------------------------------
 # Devices
 # -----------------------------------------------------------------------------  
