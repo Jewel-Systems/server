@@ -3,6 +3,7 @@ import os
 from dateutil.parser import parse as date_parse
 
 from datetime import timezone
+from datetime import datetime
 
 from flask import request
 from flask import make_response
@@ -67,10 +68,8 @@ def test_reservation(start, end, type):
         find reservations which collide with the given start and end datetime and match type
     '''
     
-     
     cnx = mysql.connector.connect(**config.db)
     cursor = cnx.cursor(dictionary=True)
-
     
     cursor.execute("""
                         SELECT * FROM reservation
@@ -457,45 +456,99 @@ def loan (device_id, user_id):
     cursor = cnx.cursor(dictionary=True)
     
     # attempt to loan
-    if request.method == 'PUT':
-        cursor.execute(""" SELECT COUNT(id) AS count, loaned_by, type
-                           FROM device WHERE id = %s
-                           AND loaned_by IS NOT NULL """, (device_id,))
-        
-        device = cursor.fetchone()
-        
-        log (device)
-        
-        # is user privilaged for this device?
-        
-        cursor.execute(""" SELECT COUNT(user_id) AS count, device.type AS type
+    if request.method == 'PUT':        
+        # is user privilaged for this device?        
+        cursor.execute(""" SELECT COUNT(device_type_privilage.type) AS count
                            FROM device, device_type_privilage
                            WHERE device.type = device_type_privilage.type
-                           AND device_type_privilage.user_id = %s """,
-                           (user_id,))
-                           
-        count = cursor.fetchone()['count']
+                           AND device_type_privilage.user_id = %s
+                           AND device.type = (SELECT type FROM device WHERE id = %s);""",
+                           (user_id,device_id))
         
-        log ('privilage ' + str (count))
+        row = cursor.fetchone()
+        
+        count = row['count']
+        
+        log ('loan()', '[privilage check]', 'executed sql', cursor.statement)
+        
+        log ('loan()', '[privilage check]', 'row returned', row)
+        
         
         if count == 0:
             return make_failed_response(error_message = 1)
         
+        
         # is the device loaned by a user?
+        cursor.execute(""" SELECT COUNT(id) AS count, loaned_by, type
+                           FROM device WHERE id = %s
+                           AND loaned_by IS NOT NULL """, (device_id,))        
+        device = cursor.fetchone()        
         if device['count']:
             cursor.execute(""" SELECT user.id, user.email, user.fname, 
                                user.lname, user.type, user.created_at
                                FROM user
-                               WHERE user.id = %s; """, (device['loaned_by'],))
-                               
-            user = cursor.fetchone()
-            
+                               WHERE user.id = %s; """, (device['loaned_by'],))                               
+            user = cursor.fetchone()            
             return make_failed_response(error_message = 2, data = user)
             
-        else:
-            
+        
+        else:            
             # TODO: reservation logic
+            # we now check safety
             
+            now = datetime.utcnow().replace(tzinfo=timezone.utc)
+            
+            log ('loan()', '[safety check]', 'it is now:', now)
+            
+            cursor.execute("""SELECT type FROM device WHERE id = %s""", (device_id,))
+            
+            device_type = cursor.fetchone()['type']
+            
+            log ('loan()', '[safety check]', 'device type:', device_type)           
+            
+            colliding_reservations = test_reservation(now, now, device_type)
+            
+            log ('loan()', '[safety check]', 'colliding', colliding_reservations)
+            
+            cursor.execute(""" SELECT COUNT(*) AS count FROM device WHERE type = %s AND is_active = 1""", (device_type,))
+            
+            total_devices = cursor.fetchone()['count']
+            
+            total_reserved = sum([int(row['count']) for row in colliding_reservations])
+            
+            log ('loan()', '[safety check]', 'total_reserved', total_reserved)
+            
+            log ('loan()', '[safety check]', 'total active devices ({})'.format(device_type), total_devices)
+            
+            remaining = total_devices - total_reserved - 1
+            
+            log ('loan()', '[safety check]', 'active devices which will be left', remaining)
+            
+            if remaining < 0:
+                if len(colliding_reservations) == 0: # there are plainly no active unloaned devices left,
+                                                     # even if there are no reservations
+                                                     # ideally, this should never happen as an inactive 
+                                                     # and unloaned device wouldn't normally be requested
+                                                     
+                                                     
+                    return make_failed_response(error_message=3)
+            
+                # now only allow if student is in one of the classes of any of the colliding reservations
+                cursor.execute(""" SELECT class_id FROM class_registration WHERE user_id = %s """, (user_id,))
+            
+                user_classes = set([row['class_id'] for row in cursor.fetchall()])
+                reservation_classes = set([row['class_id'] for row in colliding_reservations])
+                common_classes = user_classes.intersection(reservation_classes)
+            
+                log ('loan()', '[safety check]', 'user classes', user_classes)
+                log ('loan()', '[safety check]', 'reservation classes', reservation_classes)                                
+                log ('loan()', '[safety check]', 'no. of common classes', len(common_classes))
+                
+                if len(common_classes) == 0:
+                    return make_failed_response(error_message=3, data = colliding_reservations)
+                               
+            
+            log ('loan()', 'all checks passed')
             cursor.execute(""" UPDATE device SET loaned_by = %s
                                WHERE device.id = %s """, (user_id, device_id))
             cnx.commit()
@@ -503,6 +556,8 @@ def loan (device_id, user_id):
             cnx.close()
             
             return make_success_response (data=dict(device_id=device_id, user_id=user_id))
+            
+            
         
     # attempt to return device
     if request.method == 'DELETE':
