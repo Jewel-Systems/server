@@ -88,7 +88,7 @@ def test_reservation(start, end, type):
     
     colliding_reservations = cursor.fetchall()
     
-    log ('test_reservation()', 'executed SQL:', cursor.statement)
+    # log ('test_reservation()', 'executed SQL:', cursor.statement)
     log ('test_reservation()', 'colliding reservations', [row['id'] for row in colliding_reservations])
     cursor.close()
     cnx.close()
@@ -469,9 +469,9 @@ def loan (device_id, user_id):
         
         count = row['count']
         
-        log ('loan()', '[privilage check]', 'executed sql', cursor.statement)
+        # log ('loan()', '[check]', '[privilage]', 'executed sql', cursor.statement)
         
-        log ('loan()', '[privilage check]', 'row returned', row)
+        log ('loan()', '[check]', '[privilage]', 'row returned', row)
         
         
         if count == 0:
@@ -484,6 +484,7 @@ def loan (device_id, user_id):
                            AND loaned_by IS NOT NULL """, (device_id,))        
         device = cursor.fetchone()        
         if device['count']:
+            log ('loan()', '[check]', '[loan]', 'device already loaned')
             cursor.execute(""" SELECT user.id, user.email, user.fname, 
                                user.lname, user.type, user.created_at
                                FROM user
@@ -498,17 +499,17 @@ def loan (device_id, user_id):
             
             now = datetime.utcnow().replace(tzinfo=timezone.utc)
             
-            log ('loan()', '[safety check]', 'it is now:', now)
+            log ('loan()', '[check]', '[safety]', 'it is now:', now)
             
             cursor.execute("""SELECT type FROM device WHERE id = %s""", (device_id,))
             
             device_type = cursor.fetchone()['type']
             
-            log ('loan()', '[safety check]', 'device type:', device_type)           
+            log ('loan()', '[check]', '[safety]', 'device type:', device_type)           
             
             colliding_reservations = test_reservation(now, now, device_type)
             
-            log ('loan()', '[safety check]', 'colliding', colliding_reservations)
+            log ('loan()', '[check]', '[safety]', 'colliding', colliding_reservations)
             
             cursor.execute(""" SELECT COUNT(*) AS count FROM device WHERE type = %s AND is_active = 1""", (device_type,))
             
@@ -516,13 +517,13 @@ def loan (device_id, user_id):
             
             total_reserved = sum([int(row['count']) for row in colliding_reservations])
             
-            log ('loan()', '[safety check]', 'total_reserved', total_reserved)
+            log ('loan()', '[check]', '[safety]', 'total_reserved', total_reserved)
             
-            log ('loan()', '[safety check]', 'total active devices ({})'.format(device_type), total_devices)
+            log ('loan()', '[check]', '[safety]', 'total active devices ({})'.format(device_type), total_devices)
             
             remaining = total_devices - total_reserved - 1
             
-            log ('loan()', '[safety check]', 'active devices which will be left', remaining)
+            log ('loan()', '[check]', '[safety]', 'active devices which will be left', remaining)
             
             if remaining < 0:
                 if len(colliding_reservations) == 0: # there are plainly no active unloaned devices left,
@@ -540,9 +541,9 @@ def loan (device_id, user_id):
                 reservation_classes = set([row['class_id'] for row in colliding_reservations])
                 common_classes = user_classes.intersection(reservation_classes)
             
-                log ('loan()', '[safety check]', 'user classes', user_classes)
-                log ('loan()', '[safety check]', 'reservation classes', reservation_classes)                                
-                log ('loan()', '[safety check]', 'no. of common classes', len(common_classes))
+                log ('loan()', '[check]', '[safety]', 'user classes', user_classes)
+                log ('loan()', '[check]', '[safety]', 'reservation classes', reservation_classes)                                
+                log ('loan()', '[check]', '[safety]', 'no. of common classes', len(common_classes))
                 
                 if len(common_classes) == 0:
                     return make_failed_response(error_message=3, data = colliding_reservations)
@@ -640,13 +641,13 @@ def reservation ():
         
         total_reserved = sum([int(row['count']) for row in colliding_reservations])
         
-        log ('total_reserved', total_reserved)
+        log ('reservation ()', 'total_reserved', total_reserved)
         
-        log ('total active devices ({})'.format(new_reservation['type']), total_devices)
+        log ('reservation ()', 'total active devices ({})'.format(new_reservation['type']), total_devices)
         
         remaining = total_devices - total_reserved - new_reservation['count']
         
-        log ('devices which may be left', remaining)
+        log ('reservation ()', 'devices which may be left', remaining)
         
         # there is likely not going to be enough devices of this type to go 
         # around at some point where the new reservation and current ones collide
@@ -678,7 +679,7 @@ def reservation ():
             cnx.rollback()
             return make_failed_response(str(e))
         else:
-            log ('reservation() add success')
+            log ('reservation()', 'add success')
         
             cnx.commit()
             new_id = cursor.lastrowid
