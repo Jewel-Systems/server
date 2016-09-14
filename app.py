@@ -31,9 +31,9 @@ app = Flask(__name__)
 CORS(app)
 
 
-def log(message):
+def log(*args, **kwargs):
     if DEBUG:
-        print (message)
+        print (*args, **kwargs)
 
 
 def get_database():
@@ -61,6 +61,41 @@ def make_failed_response(error_message, code=400, mimetype='application/json', d
     resp.mimetype = mimetype
     return resp
 
+
+def test_reservation(start, end, type):
+    '''
+        find reservations which collide with the given start and end datetime and match type
+    '''
+    
+     
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+
+    
+    cursor.execute("""
+                        SELECT * FROM reservation
+                        
+                        WHERE  DATE_SUB(start_time, INTERVAL safe_zone hour_second) -- start of current reservations
+                        
+                        < %s -- end of new reservation 
+                          
+                        AND end_time -- end of current reservations
+                          
+                        >= %s -- start of new reservation    
+                        
+                        AND type = %s
+                        
+                        ; """, (start, end, type))
+    
+    colliding_reservations = cursor.fetchall()
+    
+    log ('test_reservation()', 'executed SQL:', cursor.statement)
+    log ('test_reservation()', 'colliding reservations', [row['id'] for row in colliding_reservations])
+    cursor.close()
+    cnx.close()
+    
+    return colliding_reservations
+    
     
 @app.route('/api/v1/testauth', methods=['POST'])
 def testauth():
@@ -199,12 +234,14 @@ def user():
         except Exception as e:
             cnx.rollback()
             return make_failed_response(str(e))
+            
         else:
             cnx.commit()
             new_id = cursor.lastrowid
             data = dict(id=new_id)
             make_qr(new_id, QR_CODE_PATH)
             return make_success_response(data)
+            
         finally:
             cursor.close()
             cnx.close()
@@ -539,6 +576,28 @@ def reservation ():
         start_time = date_parse(new_reservation['start_time']).astimezone(tz=timezone.utc)
         end_time = date_parse(new_reservation['end_time']).astimezone(tz=timezone.utc)
         
+        # we now check safety
+        colliding_reservations = test_reservation(start_time, end_time, new_reservation['type'])
+                
+        cursor.execute(""" SELECT COUNT(*) AS count FROM device WHERE type = %s AND is_active = 1""", (new_reservation['type'],))
+        
+        total_devices = cursor.fetchone()['count']
+        
+        total_reserved = sum([int(row['count']) for row in colliding_reservations])
+        
+        log ('total_reserved', total_reserved)
+        
+        log ('total active devices ({})'.format(new_reservation['type']), total_devices)
+        
+        remaining = total_devices - total_reserved - new_reservation['count']
+        
+        log ('devices which may be left', remaining)
+        
+        # there is likely not going to be enough devices of this type to go 
+        # around at some point where the new reservation and current ones collide
+        if remaining < 0:
+            return make_failed_response(error_message=1, data = colliding_reservations)
+        
         try:
             cursor.execute(
                 """ INSERT INTO reservation (start_time,
@@ -564,6 +623,8 @@ def reservation ():
             cnx.rollback()
             return make_failed_response(str(e))
         else:
+            log ('reservation() add success')
+        
             cnx.commit()
             new_id = cursor.lastrowid
             data = dict(id=new_id)
@@ -572,9 +633,10 @@ def reservation ():
             cursor.close()
             cnx.close()
 
-@app.route('/api/v1/reservation/<int:id>', methods=['DELETE'])
+@app.route('/api/v1/reservation/<int:id>', methods=['DELETE', 'GET'])
 def one_reservation(id):
-    cnx, cursor = get_database()
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
 
     # delete (revoke) a reservation
     if request.method == 'DELETE':
@@ -596,6 +658,26 @@ def one_reservation(id):
             cursor.close()
             cnx.close()
         
+    if request.method == 'GET':
+        try:
+            cursor.execute(""" SELECT * FROM reservation
+                               WHERE id = %s """, (id,))
+                               
+        except Exception as e:
+            return make_failed_response(str(e))
+            
+        else:
+            rows = cursor.fetchall()
+            if not len(rows):
+                return make_failed_response("id not found")
+                
+            else:
+                dict_dates_to_utc(rows)
+                return make_success_response(rows[0])
+                
+        finally:
+            cursor.close()
+            cnx.close()
 
 # -----------------------------------------------------------------------------
 # Classes (Academic)
