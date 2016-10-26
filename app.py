@@ -2,27 +2,25 @@ import os
 
 from dateutil.parser import parse as date_parse
 
-from datetime import timezone
-from datetime import datetime
+from datetime import timezone, datetime
 
-from flask import request
-from flask import make_response
-from flask import Flask
-from flask import render_template
+from flask import Flask, request, make_response, render_template, Response, g
 
 from flask_cors import CORS, cross_origin
 
 from flask_weasyprint import HTML, render_pdf
 
+from functools import wraps
+
 import mysql.connector
 import bcrypt
 
 import config
-from util import encode_json
-from util import parse_range
-from util import make_qr
-from util import dict_dates_to_utc
-from util import SQL_one_line
+from util import (encode_json,
+                  parse_range,
+                  make_qr,
+                  dict_dates_to_utc,
+                  SQL_one_line)
 
 from log import log
 
@@ -37,6 +35,54 @@ QR_CODE_PATH = os.path.join(APP_ROOT, 'static', 'img', 'qr')
 app = Flask(__name__)
 
 CORS(app)
+
+
+def check_auth(username, password):
+    """This function is called to check if a username /
+    password combination is valid.
+    """
+    
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+   
+    # user name may be the user's id or their email
+    if username.isdigit():
+        cursor.execute(""" SELECT * FROM user
+                            WHERE id = %s """, (username,))
+        
+    else:
+        cursor.execute(""" SELECT * FROM user
+                            WHERE email = %s """, (username,))
+
+    rows = cursor.fetchall()
+    
+    g.user = rows[0]
+        
+    if not len(rows):
+        return False
+                            
+    if bcrypt.checkpw(password.encode('ascii'), rows[0]['password'].encode('ascii')):
+        return True
+    else:
+        return False
+
+
+def authenticate():
+    """Sends a 401 response that enables basic auth"""
+    return Response(
+    'Could not verify your access level for that URL.\n'
+    'You have to login with proper credentials', 401,
+    {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+    
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
 
 
 def get_database():
@@ -97,9 +143,9 @@ def test_reservation(start, end, type):
     
     return colliding_reservations
     
-    
+
 @app.route('/api/v1/log')
-def log_endpoint ():    
+def log_endpoint ():  
     log_lines = []
     
     with open('app.log', 'r') as logfile:
@@ -155,6 +201,7 @@ def testauth():
 # -----------------------------------------------------------------------------
     
 @app.route('/api/v1/user/<int:id>', methods=['GET', 'DELETE'])
+@requires_auth
 def one_user(id):
     # get a user
     if request.method == "GET":
