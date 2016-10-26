@@ -26,6 +26,8 @@ from util import SQL_one_line
 
 from log import log
 
+log.info ('Start.')
+
 DEBUG = False
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -89,11 +91,23 @@ def test_reservation(start, end, type):
     colliding_reservations = cursor.fetchall()
     
     log.info('Executed SQL:' + SQL_one_line(cursor.statement))
-    log.info('Colliding reservations ' + str([row['id'] for row in colliding_reservations]))
+    # log.info('Colliding reservations ' + str([row['id'] for row in colliding_reservations]))
     cursor.close()
     cnx.close()
     
     return colliding_reservations
+    
+    
+@app.route('/api/v1/log')
+def log_endpoint ():    
+    log_lines = []
+    
+    with open('app.log', 'r') as logfile:
+        log_lines = logfile.readlines()
+        
+    log_lines.sort(key=lambda x:x[:25], reverse=True)
+        
+    return "".join(log_lines)  
     
     
 @app.route('/api/v1/testauth', methods=['POST'])
