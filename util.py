@@ -8,15 +8,15 @@ from datetime import timezone
 
 date_keys = ['created_at', 'start_time', 'end_time', 'last_modified']
 
+def SQL_one_line(sql):
+    ' '.join(sql.replace('\n', ' ').split())
+
 def dict_dates_to_utc(list_of_dict):    
     for d in list_of_dict:        
         for key, value in d.items():
-            if key in date_keys:
-                print (key, d[key])
+            if key in date_keys:         
                 d[key] = d[key].replace(tzinfo=timezone.utc)
-                print (key, d[key])
-
-
+               
 
 def make_qr(user_id: int, path) -> None:
     qr = qrcode.QRCode(

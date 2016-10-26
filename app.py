@@ -22,6 +22,7 @@ from util import encode_json
 from util import parse_range
 from util import make_qr
 from util import dict_dates_to_utc
+from util import SQL_one_line
 
 from log import log
 
@@ -87,7 +88,7 @@ def test_reservation(start, end, type):
     
     colliding_reservations = cursor.fetchall()
     
-    log.info('Executed SQL:' + cursor.statement)
+    log.info('Executed SQL:' + SQL_one_line(cursor.statement))
     log.info('Colliding reservations ' + str([row['id'] for row in colliding_reservations]))
     cursor.close()
     cnx.close()
@@ -215,8 +216,7 @@ def user():
         
         hashed_password = bcrypt.hashpw(new_user['password'].encode(), bcrypt.gensalt())
         
-        try:
-            print('User INSERT')
+        try:            
             cursor.execute(
                 """ INSERT INTO user (email, fname, lname, type, password)
                                VALUES (%s, %s, %s, %s, %s); """,
@@ -270,7 +270,7 @@ def user_privilage (user_id, type):
             cursor.execute(""" INSERT INTO device_type_privilage (user_id, type)
                                VALUES (%s, %s); """, (user_id, type))
         except Exception as e:
-            log.error('Attempted SQL: ' + cursor.statement.replace('\n', ' '))
+            log.error('Attempted SQL: ' + SQL_one_line(cursor.statement))
             
             e = 'User {} already has privilage for device type "{}"'.format(user_id, type)
             log.info(e)
@@ -495,7 +495,7 @@ def loan (device_id, user_id):
         
         count = row['count']
         
-        log.info('[check] [privilage] Executed SQL: ' + cursor.statement)
+        log.info('[check] [privilage] Executed SQL: ' + SQL_one_line(cursor.statement))
         
         
         
@@ -803,7 +803,7 @@ def all_class ():
             )
                             
         except Exception as e:
-            log.error('Attempted SQL: ' + cursor.statement)
+            log.error('Attempted SQL: ' + SQL_one_line(cursor.statement))
             cnx.rollback()
             return make_failed_response(str(e))
             
@@ -849,7 +849,7 @@ def one_class (id):
                 
                 classes[0]['users'] = users
                 
-                print (classes)
+                log.info (str(classes))
             
                 return make_success_response(classes[0])
         finally:
