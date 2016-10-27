@@ -24,6 +24,8 @@ from util import (encode_json,
 
 from log import log
 
+import udp
+
 log.info ('Start.')
 
 DEBUG = False
@@ -35,6 +37,8 @@ QR_CODE_PATH = os.path.join(APP_ROOT, 'static', 'img', 'qr')
 app = Flask(__name__)
 
 CORS(app)
+
+udp.go()
 
 
 def check_auth(username, password):
@@ -201,7 +205,6 @@ def testauth():
 # -----------------------------------------------------------------------------
     
 @app.route('/api/v1/user/<int:id>', methods=['GET', 'DELETE'])
-@requires_auth
 def one_user(id):
     # get a user
     if request.method == "GET":
