@@ -293,9 +293,14 @@ def user():
                 )
             )
                             
-        except Exception as e:
-            cnx.rollback()
-            return make_failed_response(str(e))
+        except Exception as e:            
+            cnx.rollback()    
+            
+            msg = str(e)            
+            if 'email_UNIQUE' in msg:
+                return make_failed_response("Sorry, that email is taken!")
+            
+            return make_failed_response(msg)
             
         else:
             cnx.commit()
@@ -922,21 +927,22 @@ def one_class (id):
     
     # remove a class
     if request.method == "DELETE":
-
-        cnx, cursor = get_database()
         
-        new_class = request.get_json(force=True)
+        cnx, cursor = get_database()
         
         try:
             cursor.execute(""" DELETE FROM class
                                WHERE id = %s """, (id,))
         except Exception as e:
-            return make_failed_response(str(e))
+            msg = 'Failed to delete class {}. There may still be a user part of it.'.format(id, str(e))
+            log.info(msg)
+            return make_failed_response(msg)
         else:
             cnx.commit()
             if not cursor.rowcount:
                 return make_failed_response("id not found")
             else:
+                log.info('Deleted class {}.'.format(id))
                 return make_success_response(dict(id=id))
         finally:
             cursor.close()
