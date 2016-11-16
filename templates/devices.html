@@ -1,0 +1,67 @@
+<!DOCTYPE>
+<html>
+  <head>
+    <title>Device Labels</title>
+    <style>
+    
+
+      .card {
+        width: 40mm;
+        height: 55mm;
+        border-radius: 2mm;
+        margin-right: 2mm;
+        margin-bottom: 4mm;
+        margin-top: 0;
+        margin-left: 0;
+        border: solid #000 1px;
+
+        display: inline-block;
+        font-family: Arial, sans-serif;
+        vertical-align: top;
+        text-align: center;
+      }
+      
+      @page {
+            size: A4;
+            margin: 10mm;
+        }
+    
+
+      .card .qr {
+        padding: 2mm;
+        padding-bottom: 2mm;
+        width: 35mm;
+        height: 35mm;
+        display: block;
+        margin-left: auto;
+        margin-right: auto 
+      }
+      
+
+      .card .id {
+        display: block;
+        font-size: 14pt;
+        word-wrap: break-word;
+        font-weight: bold;
+        margin-bottom: 2mm;
+      }
+
+      .card .type {
+        display: block;
+        font-size: 12pt;
+        word-wrap: overflow;
+        margin: 0;
+      }
+
+    </style>
+  </head>
+  <body>
+    {% for device in devices %}
+    <div class="card">
+      <img class="qr" src="{{ url_for('static', filename='img/qr/' + device.id | string +'.png') }}"></img>
+      <span class="id">{{ device.id }}</span>
+      <span class="type"><i>{{ device.type }}</i></span>
+    </div>
+    {% endfor %}
+  </body>
+</html>

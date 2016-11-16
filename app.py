@@ -428,6 +428,7 @@ def generate_qr(user_selection):
     else:
         return make_success_response(ids)
         
+        
 # -----------------------------------------------------------------------------
 # Devices
 # -----------------------------------------------------------------------------  
@@ -475,6 +476,7 @@ def device ():
         else:
             cnx.commit()
             new_id = cursor.lastrowid
+            make_qr(new_id, QR_CODE_PATH)
             data = dict(id=new_id)
             return make_success_response(data)
         finally:
@@ -693,6 +695,27 @@ def device_type ():
     
     return make_success_response(data=types)
 
+@app.route('/api/v1/device/card/<device_selection>/pdf')
+def device_cards(device_selection):
+    cnx = mysql.connector.connect(**config.db)
+    cursor = cnx.cursor(dictionary=True)
+
+    ids = parse_range(device_selection)
+
+    sql_where = ', '.join(str(i) for i in ids)
+
+    cursor.execute(""" SELECT id, type, serial_no, type FROM device
+                       WHERE id IN ({});""".format(sql_where))
+
+    data = cursor.fetchall()
+
+    cursor.close()
+    cnx.close()
+
+    # Make a PDF straight from HTML in a string.
+    html = render_template('devices.html', devices=data)
+    return render_pdf(HTML(string=html))
+    
 # -----------------------------------------------------------------------------
 # Reservation
 # -----------------------------------------------------------------------------  
