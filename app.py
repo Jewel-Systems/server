@@ -4,7 +4,7 @@ from dateutil.parser import parse as date_parse
 
 from datetime import timezone, datetime
 
-from flask import Flask, request, make_response, render_template, Response, g
+from flask import Flask, request, make_response, render_template, Response, g, jsonify
 
 from flask_cors import CORS, cross_origin
 
@@ -1065,6 +1065,15 @@ def lateness():
         
         return make_success_response(data = rows)
 
+        
+# -----------------------------------------------------------------------------
+# Config
+# -----------------------------------------------------------------------------  
+@app.route('/api/v1/config')
+def app_config():
+    return jsonify (config.app)
+      
+      
 if __name__ == "__main__":
     DEBUG = True
     app.run(debug=DEBUG, host='0.0.0.0', port=53455)
