@@ -5,3 +5,8 @@ db = {
     'raise_on_warnings': True,
     'time_zone' : '+00:00'
 }
+
+app = {
+    'password_needed' : False
+
+}

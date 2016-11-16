@@ -189,6 +189,10 @@ def testauth():
             return make_failed_response("id / email not found")
 
         else:
+            if not config.app['password_needed']:
+                rows[0].pop('password')
+                return make_success_response(rows[0])            
+            
             # test password
             if bcrypt.checkpw(test_user['password'].encode('ascii'), rows[0]['password'].encode('ascii')):
                 rows[0].pop('password')
