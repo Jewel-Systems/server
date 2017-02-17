@@ -41,6 +41,24 @@ CORS(app)
 udp.go()
 
 
+@app.before_request
+def before_request():
+    try:
+        g.cnx, g.cursor = get_database()
+        
+    except Exception:
+        make_failed_response(code=503, error_message="No database connection could be established.")
+
+@app.teardown_request
+def teardown_request(exception):
+    try:
+        g.cursor.close()
+        g.cnx.close()
+    except AttributeError:
+        pass
+
+
+
 def check_auth(username, password):
     """This function is called to check if a username /
     password combination is valid.
@@ -189,9 +207,14 @@ def testauth():
             return make_failed_response("id / email not found")
 
         else:
-            if not config.app['password_needed']:
+            # if not config.app['password_needed']:
+            #    rows[0].pop('password', None)
+            #    return make_success_response(rows[0])            
+            
+            if not test_user.get('password'):
                 rows[0].pop('password', None)
-                return make_success_response(rows[0])            
+                return make_success_response(rows[0])
+            
             
             # test password
             if bcrypt.checkpw(test_user['password'].encode('ascii'), rows[0]['password'].encode('ascii')):
@@ -237,15 +260,25 @@ def one_user(id):
                                
                 loaned = cursor.fetchall()
                 
-                # get their privilages
+                # get their privileges
                 cursor.execute(""" SELECT type FROM device_type_privilage
                                    WHERE user_id = %s; """,
                                (id,))
+                               
+                privileges = cursor.fetchall()
+                               
+                # get their classes
+                cursor.execute(""" SELECT class.* FROM class, class_registration
+                                   WHERE class_registration.class_id = class.id
+                                   AND class_registration.user_id = %s; """,
+                               (id,))
+                
             
-                privilages = cursor.fetchall()
+                classes = cursor.fetchall()
             
                 rows[0]['loaned'] = loaned
-                rows[0]['privilages'] = privilages
+                rows[0]['privileges'] = privileges
+                rows[0]['classes'] = classes
             
                 return make_success_response(rows[0])
                 
@@ -334,8 +367,33 @@ def user():
             cnx.close()
             
             
+@app.route('/api/v1/user/search')
+def user_search():
+
+    criteria = " OR ".join(["{} LIKE '%{}%'".format(key, request.args.get(key)) for key in request.args if request.args.get(key) not in (None, '')])
+    
+      
+    g.cursor.execute(""" SELECT id, email, fname, lname, type, created_at 
+                         FROM user 
+                         WHERE {};""".format(criteria))
+   
+        
+    log.debug(g.cursor.statement)
+                     
+                         
+    return make_success_response(g.cursor.fetchall())
+    
+    
+    
+        
+        
+    
+    
+    
+            
+            
 @app.route('/api/v1/user/<int:user_id>/privilege/<type>', methods=['PUT', 'DELETE'])
-def user_privilage (user_id, type):
+def user_privilege (user_id, type):
     cnx, cursor = get_database()
 
     if request.method == 'PUT':
@@ -345,7 +403,7 @@ def user_privilage (user_id, type):
         except Exception as e:
             log.error('Attempted SQL: ' + SQL_one_line(cursor.statement))
             
-            e = 'User {} already has privilage for device type "{}"'.format(user_id, type)
+            e = 'User {} already has privilege for device type "{}"'.format(user_id, type)
             log.info(e)
             return make_failed_response(e)
         else:
@@ -558,7 +616,7 @@ def loan (device_id, user_id):
     
     # attempt to loan
     if request.method == 'PUT':        
-        # is user privilaged for this device?        
+        # is user privileged for this device?        
         cursor.execute(""" SELECT COUNT(device_type_privilage.type) AS count
                            FROM device, device_type_privilage
                            WHERE device.type = device_type_privilage.type
@@ -570,13 +628,13 @@ def loan (device_id, user_id):
         
         count = row['count']
         
-        log.info('[check] [privilage] Executed SQL: ' + SQL_one_line(cursor.statement))
+        log.info('[check] [privilege] Executed SQL: ' + SQL_one_line(cursor.statement))
         
         
         
         
         if count == 0:
-            log.info('[check] [privilage] User {} not privilaged to loan device {}'.format(user_id, device_id))
+            log.info('[check] [privilege] User {} not privileged to loan device {}'.format(user_id, device_id))
             return make_failed_response(error_message = 1)
         
         
